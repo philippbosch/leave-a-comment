@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Leave-A-Comment</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <link rel="apple-touch-startup-image" href="img/touch-splash.png" />
+    <link rel="apple-touch-icon" href="img/touch-icon.png" />
+    <script type="text/javascript" src="phonegap.js"></script>
+    <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=true"></script>
+    <script type="text/javascript" src="js/jquery.js"></script>
+    <script type="text/javascript">
+        var server = 'http://floyd.local:8000/';
+        var geocoder;
+        $(document).bind('ready', function() {
+            if (window.uicontrols) {
+                window.uicontrols.createTabBar();
+                window.uicontrols.createTabBarItem("search", "Search/Tag", "74-location.png", {
+                    'onSelect': function() {
+                        $('#info').hide();
+                        $('#search-tag').show();
+                    }
+                });
+                window.uicontrols.createTabBarItem("info", "About", "999-info.png", {
+                    'onSelect': function() {
+                        $('#search-tag').hide();
+                        $('#info').show();
+                    }
+                });
+                window.uicontrols.showTabBar();
+                window.uicontrols.showTabBarItems("search","info", {
+                    'animate': false
+                });
+                window.uicontrols.selectTabBarItem("search");
+            }
+            
+            geocoder = new google.maps.Geocoder();
+            var default_latlng = new google.maps.LatLng(0,0);
+            var default_zoom = 2;
+            if (localStorage.getItem('positionLat') && localStorage.getItem('positionLng') && localStorage.getItem('zoomLevel')) {
+                default_latlng = new google.maps.LatLng(localStorage.getItem('positionLat'),localStorage.getItem('positionLng'));
+                default_zoom = parseInt(localStorage.getItem('zoomLevel'));
+            }
+            var myOptions = {
+                zoom: default_zoom,
+                center: default_latlng,
+                mapTypeId: google.maps.MapTypeId.ROADMAP,
+                disableDefaultUI: true
+            };
+            var map = new google.maps.Map(document.getElementById("map"), myOptions);
+            
+            function addMarker(lat,lng,hint) {
+                var marker_latlng = new google.maps.LatLng(lat, lng);
+                var marker = new google.maps.Marker({
+                    position: marker_latlng,
+                    map: map, 
+                    title: hint
+                });
+                google.maps.event.addListener(marker, 'click', function() {
+                    navigator.notification.alert(hint, 'Hint');
+                });
+            }
+            $.ajax({
+                'url': server + 'locations/',
+                'type': 'GET',
+                'success': function(data) {
+                    for (var i in data) {
+                        addMarker(data[i].lat, data[i].lng, data[i].hint);
+                    }
+                },
+                'dataType': 'json'
+            });
+            
+            var location_update_in_progress = false;
+            function update_location() {
+                if (location_update_in_progress) return;
+                location_update_in_progress = true;
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    var my_latlng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+                    map.setCenter(my_latlng);
+                    map.setZoom(14);
+                    location_update_in_progress = false;
+                });
+            }
+            update_location();
+            
+            var timeout;
+            google.maps.event.addListener(map, 'center_changed', function() {
+                var center = map.getCenter();
+                $('#latlng, #add-value-latlng').text(center.toUrlValue());
+                localStorage.setItem('positionLat', center.lat());
+                localStorage.setItem('positionLng', center.lng());
+                localStorage.setItem('zoomLevel', map.getZoom());
+                
+                if (geocoder) {
+                    if (timeout) window.clearTimeout(timeout);
+                    timeout = window.setTimeout(function() {
+                        if (navigator.notification && navigator.notification.activityStart) navigator.notification.activityStart();
+                        $('#address').hide().text('');
+                        geocoder.geocode({'latLng': center}, function(results, status) {
+                            if (status == google.maps.GeocoderStatus.OK) {
+                                if (results[0]) {
+                                    $('#address, #add-value-location').text(results[0].formatted_address).fadeIn();
+                                }
+                            }
+                            if (navigator.notification && navigator.notification.activityStop) navigator.notification.activityStop();
+                        });
+                    }, 2000);
+                }
+            });
+            
+            $('#crosshair').click(function() {
+                $('#add').addClass('visible');
+            });
+            $('#add-form').submit(function(e) {
+                e.preventDefault();
+                $.ajax({
+                    'url': server + 'add/',
+                    'data': {'point': map.getCenter().toUrlValue(),'hint': ($('#add-hint').val() ? $('#add-hint').val() + ' - ' : '') + $('#address').text()},
+                    'type': 'POST',
+                    'success': function(data) {
+                        $('#add').removeClass('visible');
+                        addMarker(data.lat,data.lng,data.hint);
+                    },
+                    'dataType': 'json'
+                });
+            });
+        
+        });
+        
+
+    </script>
+    <style type="text/css">
+        * {
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+        html, body, #map, .panel {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #FFF;
+        }
+        body {
+            font-family: Helvetica;
+        }
+        #map {
+            z-index: 1;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 46px;
+            height: 46px;
+            margin-left: -23px;
+            margin-top: -23px;
+            background: url('img/crosshair.png');
+            z-index: 10;
+        }
+        #status {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            color: #FFF;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 20px;
+        }
+        #latlng {
+            background: rgba(0,0,0,0.8);
+            display: none;
+        }
+        #address {
+            font-weight: normal;
+            font-size: 10px;
+            text-shadow: none;
+            color: #CCC;
+            line-height: 16px;
+            background: rgba(0,0,0,0.8);
+        }
+        
+        #info {
+            display: none;
+        }
+        #info, #add, textarea {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 13px;
+        }
+        #info-content {
+            padding: 24px;
+        }
+        #info p {
+            margin: 1em 0;
+        }
+        a {
+            text-decoration: none;
+            color: #FFF;
+            border-bottom: 1px dashed #FFF;
+        }
+        #add {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 20;
+            background: #000;
+            -webkit-transform: translate(0,100%);
+            -webkit-transition-property: -webkit-transform;
+            -webkit-transition-duration: .5s;
+        }
+        #add.visible {
+            -webkit-transform: translate(0,0);
+        }
+        #add-content {
+            padding: 24px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+        }
+        div.row {
+            margin: 1em 0;
+        }
+        #add-value-latlng {
+            font-size: 80%;
+        }
+        textarea {
+            -webkit-box-sizing: border-box;
+            width: 100%;
+            height: 100px;
+            background-color: rgba(255,255,255,0.2);
+            padding: 4px;
+            font-size: 18px;
+            color: #FFF;
+        }
+        button {
+            width: 100%;
+            background: rgba(255,255,255,0.2);
+            background-image: -webkit-gradient(linear, left top, left bottom, from(rgba(255,255,255,0.4)), color-stop(50%, rgba(255,255,255,0.25)), color-stop(50%, rgba(255,255,255,0.2)), to(rgba(255,255,255,0)));
+            font-size: 18px;
+            font-weight: bold;
+            color: #FFF;
+            margin-bottom: 10px;
+            border: 3px solid #333;
+            -webkit-border-radius: 8px;
+            height: 36px;
+            text-shadow: #000 0px -1px;
+        }
+        button[type="submit"] {
+            background-color: #C00;
+        }
+    </style>
+</head>
+ 
+<body>
+    <div class="panel" id="search-tag">
+        <div id="map"></div>
+        <div id="crosshair"></div>
+        <div id="status"><div id="latlng"></div><div id="address"></div></div>
+        <div id="add">
+            <div id="add-content">
+                
+                <form id="add-form">
+                    <fieldset>
+                        <div class="row" id="row-location">
+                            <label>Location</label>
+                            <div class="value" id="add-value-location"></div>
+                            <div class="value" id="add-value-latlng"></div>
+                        </div>
+                        <div class="row" id="row-hint">
+                            <textarea id="add-hint" placeholder="Enter a hint here if you like …"></textarea>
+                        </div>
+                        <div class="row" id="row-submit">
+                            <div><button id="add-submit" type="submit">Submit</button></div>
+                            <div><button id="add-cancel" type="cancel">Cancel</button></div>
+                        </div>
+                    </fieldset>
+                </form>
+                
+            </div>
+        </div>
+    </div>
+    <div class="panel" id="info">
+        <div id="info-content">
+            <p><strong>Leave-A-Comment</strong> is a project by</p>
+            <p><img src="img/logo-theproduct.png" width="220" height="51"></p>
+            <p>For more information visit the <a href="http://the-product.org/leave-a-comment-toolkit">Project Website</a>.</p>
+            <p>&nbsp;</p>
+            <p><strong>App development</strong> by <a href="http://pb.io/">Philipp Bosch</a>.</p>
+        </div>
+    </div>
+</body>
+
+</html>

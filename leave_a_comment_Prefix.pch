@@ -1,0 +1,8 @@
+//
+// Prefix header for all source files of the 'leave-a-comment' target in the 'leave-a-comment' project
+//
+
+#ifdef __OBJC__
+    #import <Foundation/Foundation.h>
+    #import <UIKit/UIKit.h>
+#endif
