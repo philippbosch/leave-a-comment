@@ -15,8 +15,8 @@
     <script type="text/javascript">
         var server = 'http://floyd.local:8000/';
         var geocoder;
-        $(document).bind('ready', function() {
-            if (window.uicontrols) {
+        $(document).bind('deviceready', function() {
+            if (window.UIControls) {
                 window.uicontrols.createTabBar();
                 window.uicontrols.createTabBarItem("search", "Search/Tag", "74-location.png", {
                     'onSelect': function() {
@@ -45,19 +45,30 @@
                 default_zoom = parseInt(localStorage.getItem('zoomLevel'));
             }
             var myOptions = {
-                zoom: default_zoom,
-                center: default_latlng,
-                mapTypeId: google.maps.MapTypeId.ROADMAP,
-                disableDefaultUI: true
+                'zoom': default_zoom,
+                'center': default_latlng,
+                'mapTypeId': google.maps.MapTypeId.ROADMAP,
+                'disableDefaultUI': true
             };
             var map = new google.maps.Map(document.getElementById("map"), myOptions);
             
+            
+            var marker_image = new google.maps.MarkerImage('img/marker.png', new google.maps.Size(29,29), new google.maps.Point(0,0), new google.maps.Point(7,28));
+            var marker_shadow_image = new google.maps.MarkerImage('img/marker-shadow.png', new google.maps.Size(46,21), new google.maps.Point(0,0), new google.maps.Point(7,18));
+            var marker_shape = {
+                  coord: [1, 1, 1, 29, 29, 29, 29 , 1],
+                  type: 'poly'
+              };
             function addMarker(lat,lng,hint) {
                 var marker_latlng = new google.maps.LatLng(lat, lng);
+                
                 var marker = new google.maps.Marker({
-                    position: marker_latlng,
-                    map: map, 
-                    title: hint
+                    'position': marker_latlng,
+                    'map': map, 
+                    'title': hint,
+                    'shadow': marker_shadow_image,
+                    'icon': marker_image,
+                    'shape': marker_shape
                 });
                 google.maps.event.addListener(marker, 'click', function() {
                     navigator.notification.alert(hint, 'Hint');
@@ -113,9 +124,10 @@
             });
             
             $('#crosshair').click(function() {
+                $('#add-hint').val('');
                 $('#add').addClass('visible');
             });
-            $('#add-form').submit(function(e) {
+            $('#add-submit').click(function(e) {
                 e.preventDefault();
                 $.ajax({
                     'url': server + 'add/',
@@ -127,6 +139,9 @@
                     },
                     'dataType': 'json'
                 });
+            });
+            $('#add-cancel').click(function(e) {
+                $('#add').removeClass('visible');
             });
         
         });
@@ -189,7 +204,7 @@
         #info {
             display: none;
         }
-        #info, #add, textarea {
+        #info {
             font-family: "Courier New", Courier, monospace;
             font-size: 13px;
         }
@@ -241,20 +256,24 @@
             font-size: 18px;
             color: #FFF;
         }
-        button {
+        .button {
+            -webkit-box-sizing: border-box;
             width: 100%;
+            display: block;
             background: rgba(255,255,255,0.2);
             background-image: -webkit-gradient(linear, left top, left bottom, from(rgba(255,255,255,0.4)), color-stop(50%, rgba(255,255,255,0.25)), color-stop(50%, rgba(255,255,255,0.2)), to(rgba(255,255,255,0)));
-            font-size: 18px;
+            font-size: 22px;
             font-weight: bold;
             color: #FFF;
             margin-bottom: 10px;
             border: 3px solid #333;
             -webkit-border-radius: 8px;
-            height: 36px;
+            height: 40px;
             text-shadow: #000 0px -1px;
+            text-align: center;
+            line-height: 40px;
         }
-        button[type="submit"] {
+        .button.submit {
             background-color: #C00;
         }
     </style>
@@ -279,8 +298,8 @@
                             <textarea id="add-hint" placeholder="Enter a hint here if you like …"></textarea>
                         </div>
                         <div class="row" id="row-submit">
-                            <div><button id="add-submit" type="submit">Submit</button></div>
-                            <div><button id="add-cancel" type="cancel">Cancel</button></div>
+                            <div><a href="#" id="add-submit" class="button submit">Submit</a></div>
+                            <div><a href="#" id="add-cancel" class="button cancel">Cancel</a></div>
                         </div>
                     </fieldset>
                 </form>
